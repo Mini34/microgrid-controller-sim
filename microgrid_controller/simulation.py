@@ -25,7 +25,13 @@ def day_profile(steps: int = 96) -> list[dict[str, float | bool | str]]:
         grid_available = not 18.0 <= hour < 19.0
         state = PowerState(solar_kw, load_kw, soc, grid_available, interval_hours)
         decision = controller.dispatch(state)
-        rows.append({"hour": round(hour, 2), **asdict(state), **asdict(decision)})
+        rows.append(
+            {
+                "hour": round(hour, 2),
+                **asdict(state),
+                **asdict(decision),
+                "balance_error_kw": decision.balance_error_kw,
+            }
+        )
         soc = decision.next_soc
     return rows
-

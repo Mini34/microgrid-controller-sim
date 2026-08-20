@@ -23,6 +23,8 @@ class ControllerConfig:
             raise ValueError("SOC limits must satisfy 0 <= min < max <= 1")
         if min(self.max_charge_kw, self.max_discharge_kw, self.grid_import_limit_kw) < 0:
             raise ValueError("power limits cannot be negative")
+        if not 0 < self.charge_efficiency <= 1 or not 0 < self.discharge_efficiency <= 1:
+            raise ValueError("battery efficiencies must be greater than zero and at most one")
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,7 @@ class PowerState:
 @dataclass(frozen=True)
 class DispatchDecision:
     mode: str
+    load_kw: float
     solar_to_load_kw: float
     battery_charge_kw: float
     battery_discharge_kw: float
@@ -48,8 +51,7 @@ class DispatchDecision:
     @property
     def balance_error_kw(self) -> float:
         supplied = self.solar_to_load_kw + self.battery_discharge_kw + self.grid_import_kw
-        served_load = max(0.0, supplied - self.unserved_load_kw)
-        return round(served_load - (supplied - self.unserved_load_kw), 9)
+        return round(supplied + self.unserved_load_kw - self.load_kw, 9)
 
 
 class MicrogridController:
@@ -74,7 +76,10 @@ class MicrogridController:
         battery_charge = min(surplus, cfg.max_charge_kw, charge_limit_kw)
         grid_export = surplus - battery_charge if state.grid_available else 0.0
 
-        available_battery_kwh = max(0.0, (state.battery_soc - cfg.min_soc) * cfg.battery_capacity_kwh)
+        available_battery_kwh = max(
+            0.0,
+            (state.battery_soc - cfg.min_soc) * cfg.battery_capacity_kwh,
+        )
         discharge_limit_kw = available_battery_kwh * cfg.discharge_efficiency / state.interval_hours
         if state.grid_available:
             required_discharge = max(0.0, deficit - cfg.grid_import_limit_kw)
@@ -83,7 +88,9 @@ class MicrogridController:
         battery_discharge = min(required_discharge, cfg.max_discharge_kw, discharge_limit_kw)
 
         remaining_deficit = deficit - battery_discharge
-        grid_import = remaining_deficit if state.grid_available else 0.0
+        grid_import = (
+            min(remaining_deficit, cfg.grid_import_limit_kw) if state.grid_available else 0.0
+        )
         unserved = max(0.0, remaining_deficit - grid_import)
 
         energy_change_kwh = (
@@ -108,6 +115,7 @@ class MicrogridController:
 
         return DispatchDecision(
             mode=mode,
+            load_kw=round(state.load_kw, 4),
             solar_to_load_kw=round(solar_to_load, 4),
             battery_charge_kw=round(battery_charge, 4),
             battery_discharge_kw=round(battery_discharge, 4),
@@ -116,4 +124,3 @@ class MicrogridController:
             unserved_load_kw=round(unserved, 4),
             next_soc=round(next_soc, 5),
         )
-
