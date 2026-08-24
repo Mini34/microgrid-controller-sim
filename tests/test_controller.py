@@ -1,6 +1,11 @@
 import unittest
+from math import nan
 
-from microgrid_controller.controller import ControllerConfig, MicrogridController, PowerState
+from microgrid_controller.controller import (
+    ControllerConfig,
+    MicrogridController,
+    PowerState,
+)
 from microgrid_controller.simulation import day_profile
 
 
@@ -60,6 +65,18 @@ class MicrogridControllerTests(unittest.TestCase):
             ControllerConfig(charge_efficiency=0.0)
         with self.assertRaises(ValueError):
             ControllerConfig(discharge_efficiency=1.01)
+
+    def test_initial_soc_must_respect_configured_limits(self) -> None:
+        with self.assertRaisesRegex(ValueError, "configured minimum"):
+            self.controller.dispatch(PowerState(0.0, 2.0, 0.10))
+        with self.assertRaisesRegex(ValueError, "configured minimum"):
+            self.controller.dispatch(PowerState(4.0, 2.0, 0.98))
+
+    def test_non_finite_configuration_and_state_are_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "finite"):
+            ControllerConfig(battery_capacity_kwh=nan)
+        with self.assertRaisesRegex(ValueError, "finite"):
+            self.controller.dispatch(PowerState(nan, 2.0, 0.50))
 
     def test_day_profile_respects_soc_and_grid_limit(self) -> None:
         rows = day_profile()
