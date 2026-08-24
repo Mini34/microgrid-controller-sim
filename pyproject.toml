@@ -6,9 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "microgrid-controller-sim"
 version = "0.1.0"
 description = "A deterministic solar, battery, grid, and load controller simulation"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Mina Soliman" }]
 
+[project.optional-dependencies]
+dev = ["ruff>=0.16.0,<1.0"]
+
 [project.scripts]
 microgrid-sim = "microgrid_controller.cli:main"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]

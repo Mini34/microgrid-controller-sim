@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,18 @@ class ControllerConfig:
     discharge_efficiency: float = 0.95
 
     def __post_init__(self) -> None:
+        numeric_values = (
+            self.battery_capacity_kwh,
+            self.min_soc,
+            self.max_soc,
+            self.max_charge_kw,
+            self.max_discharge_kw,
+            self.grid_import_limit_kw,
+            self.charge_efficiency,
+            self.discharge_efficiency,
+        )
+        if not all(isfinite(value) for value in numeric_values):
+            raise ValueError("controller configuration values must be finite")
         if self.battery_capacity_kwh <= 0:
             raise ValueError("battery capacity must be positive")
         if not 0 <= self.min_soc < self.max_soc <= 1:
@@ -59,14 +72,24 @@ class MicrogridController:
         self.config = config or ControllerConfig()
 
     def dispatch(self, state: PowerState) -> DispatchDecision:
+        cfg = self.config
+        state_values = (
+            state.solar_kw,
+            state.load_kw,
+            state.battery_soc,
+            state.interval_hours,
+        )
+        if not all(isfinite(value) for value in state_values):
+            raise ValueError("power-state values must be finite")
         if min(state.solar_kw, state.load_kw) < 0:
             raise ValueError("solar and load power cannot be negative")
-        if not 0 <= state.battery_soc <= 1:
-            raise ValueError("battery_soc must be between zero and one")
+        if not cfg.min_soc <= state.battery_soc <= cfg.max_soc:
+            raise ValueError(
+                "battery_soc must be within the configured minimum and maximum"
+            )
         if state.interval_hours <= 0:
             raise ValueError("interval_hours must be positive")
 
-        cfg = self.config
         solar_to_load = min(state.solar_kw, state.load_kw)
         surplus = max(0.0, state.solar_kw - solar_to_load)
         deficit = max(0.0, state.load_kw - solar_to_load)

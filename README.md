@@ -74,6 +74,9 @@ Example 24-step summary:
 
 - Power is treated as constant within each simulation interval.
 - Battery charge/discharge efficiency is applied to state-of-charge updates.
+- Each input state must begin within the configured SOC range; invalid states are
+  rejected instead of being clamped in a way that would create or discard energy.
+- Non-finite configuration and input-state values are rejected before dispatch.
 - The controller enforces SOC, battery-power, and grid-import limits rather than allowing
   an impossible dispatch.
 - The model reports unserved load instead of silently violating energy constraints.
